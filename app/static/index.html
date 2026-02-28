@@ -1,0 +1,102 @@
+<!doctype html>
+<html lang="zh-CN">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>WorkoutAI 内测版</title>
+    <style>
+      body { font-family: Arial, sans-serif; margin: 0; background:#f4f7fb; }
+      .wrap { max-width: 980px; margin: 24px auto; background: #fff; padding: 20px; border-radius: 12px; box-shadow: 0 8px 24px rgba(0,0,0,.08); }
+      h1 { margin-top:0; }
+      .grid { display:grid; grid-template-columns: 1fr 1fr; gap: 12px; }
+      input, textarea, select, button { width:100%; padding:10px; margin-top:6px; border-radius:8px; border:1px solid #cfd6df; }
+      .drop { border:2px dashed #9cb4ce; padding:16px; border-radius:10px; text-align:center; background:#f9fcff; }
+      .row { margin-bottom:10px; }
+      .actions { display:flex; gap:10px; }
+      pre { background:#101826; color:#b6d7ff; padding:12px; border-radius:10px; overflow:auto; }
+      .hidden { display:none; }
+    </style>
+  </head>
+  <body>
+    <div class="wrap">
+      <h1>WorkoutAI（体态分析 + 饮食计划 + PDF）</h1>
+
+      <div class="row">
+        <label>客户原始文字（可粘贴）</label>
+        <textarea id="raw" rows="4" placeholder="例如：姓名: 张三, 性别: 男, 身高: 178, 体重: 88, 目标: 减脂增肌"></textarea>
+        <button id="parseBtn">一键解析并自动填写</button>
+      </div>
+
+      <div class="grid">
+        <div class="row"><label>内测码</label><input id="beta" /></div>
+        <div class="row"><label>姓名</label><input id="name" /></div>
+        <div class="row"><label>性别</label><select id="gender"><option>男</option><option>女</option></select></div>
+        <div class="row"><label>身高(cm)</label><input id="height" type="number" /></div>
+        <div class="row"><label>体重(kg)</label><input id="weight" type="number" /></div>
+        <div class="row"><label>目标</label><input id="goal" value="减脂增肌" /></div>
+      </div>
+
+      <div class="row">
+        <label><input id="strength" type="checkbox" checked style="width:auto" /> 包含力量训练（关闭后生成纯饮食方案）</label>
+      </div>
+
+      <div class="grid">
+        <div class="row"><label>正面照</label><div class="drop"><input id="front" type="file" accept="image/*" /></div></div>
+        <div class="row"><label>背面照</label><div class="drop"><input id="back" type="file" accept="image/*" /></div></div>
+      </div>
+
+      <div class="row"><label>补充说明</label><textarea id="notes" rows="3"></textarea></div>
+      <div class="actions">
+        <button id="submitBtn">确认并生成专属计划</button>
+      </div>
+
+      <h3>生成结果</h3>
+      <a id="pdfLink" class="hidden" target="_blank">下载PDF</a>
+      <pre id="out"></pre>
+    </div>
+
+    <script>
+      const byId = (id) => document.getElementById(id);
+
+      byId('parseBtn').onclick = async () => {
+        const fd = new FormData();
+        fd.append('content', byId('raw').value);
+        const res = await fetch('/api/parse', { method: 'POST', body: fd });
+        const data = await res.json();
+        if (data.name) byId('name').value = data.name;
+        if (data.gender) byId('gender').value = data.gender;
+        if (data.height_cm) byId('height').value = data.height_cm;
+        if (data.weight_kg) byId('weight').value = data.weight_kg;
+        if (data.goal) byId('goal').value = data.goal;
+      };
+
+      byId('submitBtn').onclick = async () => {
+        const fd = new FormData();
+        fd.append('beta_code', byId('beta').value);
+        fd.append('name', byId('name').value);
+        fd.append('gender', byId('gender').value);
+        fd.append('height_cm', byId('height').value);
+        fd.append('weight_kg', byId('weight').value);
+        fd.append('goal', byId('goal').value);
+        fd.append('strength_training', byId('strength').checked);
+        fd.append('notes', byId('notes').value);
+
+        if (!byId('front').files[0] || !byId('back').files[0]) {
+          alert('请上传正面照和背面照');
+          return;
+        }
+        fd.append('front_image', byId('front').files[0]);
+        fd.append('back_image', byId('back').files[0]);
+
+        const res = await fetch('/api/plan', { method: 'POST', body: fd });
+        const data = await res.json();
+        byId('out').textContent = JSON.stringify(data.plan, null, 2);
+        if (data.pdf_url) {
+          byId('pdfLink').classList.remove('hidden');
+          byId('pdfLink').href = data.pdf_url;
+          byId('pdfLink').textContent = '下载专属PDF计划';
+        }
+      };
+    </script>
+  </body>
+</html>
